@@ -1,18 +1,23 @@
 import { useMemo } from "react";
 import MarkdownRenderer from "./MarkdownRenderer";
-
-interface Step {
-  id: string;
-  title: string;
-  status: "running" | "finished" | "error";
-  output?: string;
-}
+import type { Step, AppStatus } from "../types";
 
 interface Props {
   steps: Step[];
   resultText: string;
-  status: "idle" | "running" | "done" | "error";
+  status: AppStatus;
   error?: string;
+}
+
+function downloadMarkdown(text: string) {
+  const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `research-${ts}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function ResearchResult({ steps, resultText, status, error }: Props) {
@@ -54,7 +59,18 @@ export default function ResearchResult({ steps, resultText, status, error }: Pro
 
       {resultText && (
         <div className="result-content">
-          <h3>研究结果</h3>
+          <div className="result-header">
+            <h3>研究结果</h3>
+            {status === "done" && (
+              <button
+                className="btn btn-download"
+                onClick={() => downloadMarkdown(resultText)}
+                title="下载为 Markdown 文件"
+              >
+                ⬇ 下载 MD
+              </button>
+            )}
+          </div>
           <div className="markdown-body">
             <MarkdownRenderer content={resultText} />
           </div>

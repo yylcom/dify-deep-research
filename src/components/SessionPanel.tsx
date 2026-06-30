@@ -1,14 +1,6 @@
 import ResearchInput from "./ResearchInput";
 import ResearchResult from "./ResearchResult";
-
-interface Step {
-  id: string;
-  title: string;
-  status: "running" | "finished" | "error";
-  output?: string;
-}
-
-type AppStatus = "idle" | "running" | "done" | "error";
+import type { Step, AppStatus } from "../types";
 
 interface Props {
   query: string;

@@ -9,26 +9,8 @@ import {
 import SessionSidebar from "./components/SessionSidebar";
 import SessionPanel from "./components/SessionPanel";
 import SettingsModal from "./components/SettingsModal";
+import type { AppStatus, Session } from "./types";
 import "./App.css";
-
-interface Step {
-  id: string;
-  title: string;
-  status: "running" | "finished" | "error";
-  output?: string;
-}
-
-type AppStatus = "idle" | "running" | "done" | "error";
-
-interface Session {
-  id: string;
-  query: string;
-  steps: Step[];
-  resultText: string;
-  status: AppStatus;
-  error: string;
-  createdAt: number;
-}
 
 const SESSIONS_KEY = "dify_sessions";
 const ACTIVE_KEY = "dify_active_session";
@@ -71,6 +53,10 @@ function extractLongestText(obj: Record<string, unknown> | undefined): string {
   return best;
 }
 
+function pickFallbackResult(collected: string[]): string {
+  return collected.reduce((a, b) => (a.length >= b.length ? a : b), "");
+}
+
 export default function App() {
   const [config, setConfig] = useState<DifyConfig>(() => getDefaultConfig());
   const [showSettings, setShowSettings] = useState(() => !getDefaultConfig().apiKey);
@@ -108,6 +94,17 @@ export default function App() {
     []
   );
 
+  const updateSessionById = useCallback(
+    (sessionId: string, updater: (s: Session) => Session) => {
+      setSessions((prev) => {
+        const next = prev.map((s) => (s.id === sessionId ? updater(s) : s));
+        persistSessions(next);
+        return next;
+      });
+    },
+    []
+  );
+
   const handleEvent = useCallback(
     (event: WorkflowRunEvent, sessionId: string) => {
       const d = event.data;
@@ -115,14 +112,9 @@ export default function App() {
         case "node_started": {
           const id = (d.node_id ?? "") as string;
           const title = (d.title ?? id) as string;
-          setSessions((prev) => {
-            const next = prev.map((s) => {
-              if (s.id !== sessionId) return s;
-              if (s.steps.some((st) => st.id === id)) return s;
-              return { ...s, steps: [...s.steps, { id, title, status: "running" as const }] };
-            });
-            persistSessions(next);
-            return next;
+          updateSessionById(sessionId, (s) => {
+            if (s.steps.some((st) => st.id === id)) return s;
+            return { ...s, steps: [...s.steps, { id, title, status: "running" as const }] };
           });
           break;
         }
@@ -131,19 +123,12 @@ export default function App() {
           const outputs = (d.outputs ?? {}) as Record<string, unknown>;
           const output = extractLongestText(outputs);
           const failed = d.status === "failed";
-          setSessions((prev) => {
-            const next = prev.map((s) => {
-              if (s.id !== sessionId) return s;
-              return {
-                ...s,
-                steps: s.steps.map((st) =>
-                  st.id === id ? { ...st, status: failed ? ("error" as const) : ("finished" as const), output } : st
-                ),
-              };
-            });
-            persistSessions(next);
-            return next;
-          });
+          updateSessionById(sessionId, (s) => ({
+            ...s,
+            steps: s.steps.map((st) =>
+              st.id === id ? { ...st, status: failed ? ("error" as const) : ("finished" as const), output } : st
+            ),
+          }));
           if (!failed && output.length > 20) {
             collectedRef.current.push(output);
           }
@@ -151,32 +136,21 @@ export default function App() {
         }
         case "text_chunk": {
           const text = (d.text ?? "") as string;
-          setSessions((prev) => {
-            const next = prev.map((s) =>
-              s.id === sessionId ? { ...s, resultText: s.resultText + text } : s
-            );
-            persistSessions(next);
-            return next;
-          });
+          updateSessionById(sessionId, (s) => ({
+            ...s,
+            resultText: s.resultText + text,
+          }));
           break;
         }
         case "workflow_finished": {
           const outputs = (d.outputs ?? {}) as Record<string, unknown>;
           const finalText = extractLongestText(outputs);
-          setSessions((prev) => {
-            const next = prev.map((s) => {
-              if (s.id !== sessionId) return s;
-              let result = s.resultText;
-              if (result.length <= 20) {
-                result =
-                  finalText.length > 20
-                    ? finalText
-                    : collectedRef.current.reduce((a, b) => (a.length >= b.length ? a : b), "");
-              }
-              return { ...s, resultText: result, status: "done" as AppStatus };
-            });
-            persistSessions(next);
-            return next;
+          updateSessionById(sessionId, (s) => {
+            let result = s.resultText;
+            if (result.length <= 20) {
+              result = finalText.length > 20 ? finalText : pickFallbackResult(collectedRef.current);
+            }
+            return { ...s, resultText: result, status: "done" as AppStatus };
           });
           doneRef.current = true;
           break;
@@ -189,7 +163,7 @@ export default function App() {
         }
       }
     },
-    [updateSession]
+    [updateSession, updateSessionById]
   );
 
   const handleSubmit = async (query: string) => {
@@ -209,17 +183,12 @@ export default function App() {
         config
       );
       if (!doneRef.current) {
-        setSessions((prev) => {
-          const next = prev.map((s) => {
-            if (s.id !== sid) return s;
-            let result = s.resultText;
-            if (result.length <= 20) {
-              result = collectedRef.current.reduce((a, b) => (a.length >= b.length ? a : b), "");
-            }
-            return { ...s, resultText: result, status: "done" as AppStatus };
-          });
-          persistSessions(next);
-          return next;
+        updateSessionById(sid, (s) => {
+          let result = s.resultText;
+          if (result.length <= 20) {
+            result = pickFallbackResult(collectedRef.current);
+          }
+          return { ...s, resultText: result, status: "done" as AppStatus };
         });
       }
     } catch (err: unknown) {
@@ -258,10 +227,6 @@ export default function App() {
     });
   };
 
-  const handleSelectSession = (id: string) => {
-    setActiveId(id);
-  };
-
   const handleSaveConfig = (newConfig: DifyConfig) => {
     setConfig(newConfig);
     saveConfig(newConfig);
@@ -277,7 +242,6 @@ export default function App() {
     createdAt: s.createdAt,
   }));
 
-  // Auto-create a first session if none exist
   useEffect(() => {
     setSessions((prev) => {
       if (prev.length > 0) return prev;
@@ -294,7 +258,7 @@ export default function App() {
         <SessionSidebar
           sessions={sessionList}
           activeId={activeId}
-          onSelect={handleSelectSession}
+          onSelect={(id) => setActiveId(id)}
           onNew={handleNewSession}
           onDelete={handleDeleteSession}
         />

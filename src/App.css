@@ -378,14 +378,39 @@
   overflow: hidden;
 }
 
-.result-content h3 {
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.result-header h3 {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border);
+  margin: 0;
+  padding: 14px 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.btn-download {
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-download:hover {
+  background: var(--primary);
+  color: #fff;
 }
 
 .markdown-body {
