@@ -1,5 +1,24 @@
-const BASE_URL = import.meta.env.VITE_DIFY_BASE_URL || "https://api.dify.ai/v1";
-const API_KEY = import.meta.env.VITE_DIFY_API_KEY || "";
+export interface DifyConfig {
+  baseUrl: string;
+  apiKey: string;
+}
+
+const DEFAULT_CONFIG: DifyConfig = {
+  baseUrl: import.meta.env.VITE_DIFY_BASE_URL || "https://api.dify.ai/v1",
+  apiKey: import.meta.env.VITE_DIFY_API_KEY || "",
+};
+
+export function getDefaultConfig(): DifyConfig {
+  return {
+    baseUrl: localStorage.getItem("dify_base_url") || DEFAULT_CONFIG.baseUrl,
+    apiKey: localStorage.getItem("dify_api_key") || DEFAULT_CONFIG.apiKey,
+  };
+}
+
+export function saveConfig(config: DifyConfig): void {
+  localStorage.setItem("dify_base_url", config.baseUrl);
+  localStorage.setItem("dify_api_key", config.apiKey);
+}
 
 export interface WorkflowRunEvent {
   event:
@@ -18,12 +37,14 @@ export interface WorkflowRunEvent {
 export async function runWorkflow(
   query: string,
   onEvent: (event: WorkflowRunEvent) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  config?: DifyConfig
 ): Promise<void> {
-  const res = await fetch(`${BASE_URL}/workflows/run`, {
+  const { baseUrl, apiKey } = config || getDefaultConfig();
+  const res = await fetch(`${baseUrl}/workflows/run`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

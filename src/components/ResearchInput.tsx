@@ -1,13 +1,18 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 
 interface Props {
   onSubmit: (query: string) => void;
   loading: boolean;
   onCancel: () => void;
+  initialQuery?: string;
 }
 
-export default function ResearchInput({ onSubmit, loading, onCancel }: Props) {
-  const [query, setQuery] = useState("");
+export default function ResearchInput({ onSubmit, loading, onCancel, initialQuery }: Props) {
+  const [query, setQuery] = useState(initialQuery ?? "");
+
+  useEffect(() => {
+    setQuery(initialQuery ?? "");
+  }, [initialQuery]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
