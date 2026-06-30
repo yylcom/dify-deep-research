@@ -119,7 +119,7 @@ export default function App() {
             const next = prev.map((s) => {
               if (s.id !== sessionId) return s;
               if (s.steps.some((st) => st.id === id)) return s;
-              return { ...s, steps: [...s.steps, { id, title, status: "running" }] };
+              return { ...s, steps: [...s.steps, { id, title, status: "running" as const }] };
             });
             persistSessions(next);
             return next;
